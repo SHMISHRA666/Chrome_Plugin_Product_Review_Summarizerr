@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src http://localhost:8080">
+  <title>Smart Purchase Advisor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Smart Purchase Advisor</h1>
+    </header>
+    
+    <div id="status-container">
+      <div id="status-message" class="status-info">
+        Navigate to an Amazon product page to analyze reviews
+      </div>
+    </div>
+    
+    <div class="action-container">
+      <button id="analyze-button" disabled>Analyze Reviews</button>
+      <div id="loader" class="hidden"></div>
+    </div>
+    
+    <div id="results-container" class="hidden">
+      <h2 id="product-title">Product Name</h2>
+      
+      <div class="score-container">
+        <div class="score-box">
+          <div class="score-circle" id="confidence-score">0%</div>
+          <div class="score-label">
+            <h3>Confidence Score</h3>
+            <p id="confidence-level">Unknown</p>
+          </div>
+        </div>
+        
+        <div class="score-box">
+          <div class="score-circle" id="sentiment-score">0</div>
+          <div class="score-label">
+            <h3>Sentiment</h3>
+            <p id="sentiment-text">Unknown</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="pros-cons-container">
+        <div class="pros-box">
+          <h3>Pros</h3>
+          <ul id="pros-list"></ul>
+        </div>
+        <div class="cons-box">
+          <h3>Cons</h3>
+          <ul id="cons-list"></ul>
+        </div>
+      </div>
+      
+      <div class="review-info">
+        <p>Analysis based on <span id="review-count">0</span> reviews</p>
+      </div>
+      
+      <div id="warnings-container" class="hidden">
+        <h3>Warnings</h3>
+        <ul id="warnings-list"></ul>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html> 

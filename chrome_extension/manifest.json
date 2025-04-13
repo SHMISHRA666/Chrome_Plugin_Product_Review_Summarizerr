@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Purchase Advisor",
+  "version": "1.0",
+  "description": "Helps analyze product reviews to provide purchase advice",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8080/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.amazon.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["server_check.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+} 
