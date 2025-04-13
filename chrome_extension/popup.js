@@ -1,3 +1,8 @@
+/**
+ * Popup UI script for Smart Purchase Advisor
+ * Handles UI interactions, API requests, and displaying analysis results
+ */
+
 // Wait for DOM content to load
 document.addEventListener('DOMContentLoaded', () => {
   // DOM elements
@@ -19,7 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Server URL for API requests - make sure this matches your backend
   const apiUrl = 'http://localhost:8080/api/detect-product';
   
-  // Check if current page is an Amazon product page and if content script is loaded
+  /**
+   * Check if current page is an Amazon product page and verify content script status
+   * Enables or disables the analyze button based on the result
+   */
   function checkIfProductPage() {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs || tabs.length === 0) {
@@ -48,7 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Make sure content script is loaded before proceeding
+  /**
+   * Ensure content script is loaded in the active tab
+   * Attempts to inject the content script if not already loaded
+   * 
+   * @param {number} tabId - ID of the active tab
+   * @param {Function} onSuccess - Callback when content script is loaded
+   * @param {Function} onFailure - Callback when content script fails to load
+   */
   function ensureContentScriptLoaded(tabId, onSuccess, onFailure) {
     // First try to ping the content script
     chrome.tabs.sendMessage(tabId, { action: 'ping' }, response => {
@@ -86,14 +101,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Enable analysis button
+  /**
+   * Enable the analyze button with a ready status message
+   */
   function enableAnalysis() {
     statusMessage.textContent = 'Ready to analyze Amazon product reviews';
     statusMessage.className = 'status-info';
     analyzeButton.disabled = false;
   }
   
-  // Disable analysis button with message
+  /**
+   * Disable the analyze button with a custom message
+   * @param {string} message - Message to display to the user
+   */
   function disableAnalysis(message) {
     statusMessage.textContent = message;
     statusMessage.className = 'status-warning';
@@ -101,7 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
     hideResults();
   }
   
-  // Show loading state
+  /**
+   * Show loading state while waiting for analysis results
+   */
   function showLoading() {
     analyzeButton.disabled = true;
     loader.classList.remove('hidden');
@@ -110,7 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
     hideResults();
   }
   
-  // Show error state
+  /**
+   * Show error state with a custom message
+   * @param {string} message - Error message to display to the user
+   */
   function showError(message) {
     statusMessage.textContent = message;
     statusMessage.className = 'status-error';
@@ -119,12 +144,17 @@ document.addEventListener('DOMContentLoaded', () => {
     hideResults();
   }
   
-  // Hide results container
+  /**
+   * Hide the results container
+   */
   function hideResults() {
     resultsContainer.classList.add('hidden');
   }
   
-  // Start analysis process
+  /**
+   * Start the product analysis process
+   * Requests product data from content script and sends it to API server
+   */
   function startAnalysis() {
     showLoading();
     
@@ -171,7 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   
-  // Send product data to API server
+  /**
+   * Send product data to the API server for analysis
+   * @param {Object} productData - Product data scraped from the Amazon page
+   */
   function sendToApiServer(productData) {
     console.log("Sending data to API:", productData);
     
@@ -185,6 +218,9 @@ document.addEventListener('DOMContentLoaded', () => {
       productData.site = 'amazon.com';
     }
     
+    // Always request full details to avoid hidden pros/cons
+    productData.include_full_details = true;
+    
     fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -195,127 +231,152 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .then(response => {
       if (!response.ok) {
-        throw new Error(`Server responded with status: ${response.status}`);
+        throw new Error(`Server returned ${response.status} ${response.statusText}`);
       }
       return response.json();
     })
     .then(data => {
-      console.log("Received API response:", data);
-      
-      // Save analysis data
-      chrome.storage.local.set({ 
-        lastAnalysis: {
-          data: data,
-          timestamp: Date.now(),
-          productUrl: productData.url
+      // Process data through background script (to handle hidden fields)
+      chrome.runtime.sendMessage(
+        { action: 'processApiResults', data: data },
+        (processedResponse) => {
+          if (processedResponse && processedResponse.status === 'success') {
+            // Show results in the popup
+            displayResults(processedResponse.processedData, productData.title);
+            
+            // If we need a refresh, show a warning
+            if (processedResponse.needsRefresh) {
+              statusMessage.textContent = "Some details are hidden. Click 'Analyze Reviews' again for full details.";
+              statusMessage.className = 'status-warning';
+            } else {
+              statusMessage.textContent = 'Analysis complete!';
+              statusMessage.className = 'status-success';
+            }
+          } else {
+            showError('Error processing API results');
+          }
         }
-      });
-      
-      // Display results
-      displayResults(data, productData.title);
+      );
     })
     .catch(error => {
-      console.error('API Error:', error);
-      showError(`Error connecting to server: ${error.message}. Make sure the backend API is running at ${apiUrl}`);
+      console.error('API error:', error);
+      showError(`Server error: ${error.message}`);
+    })
+    .finally(() => {
+      loader.classList.add('hidden');
+      analyzeButton.disabled = false;
     });
   }
   
-  // Display analysis results
+  /**
+   * Display analysis results in the popup UI
+   * @param {Object} data - API response data with sentiment analysis and confidence scores
+   * @param {string} title - Product title
+   */
   function displayResults(data, title) {
-    // Check if data contains an error
-    if (data.error) {
-      showError(`Analysis error: ${data.error}`);
-      return;
-    }
+    console.log("Displaying results:", data);
     
-    // Update loading state
-    loader.classList.add('hidden');
-    statusMessage.textContent = 'Analysis complete!';
-    statusMessage.className = 'status-success';
-    analyzeButton.disabled = false;
+    // Make sure the results container is visible
+    resultsContainer.classList.remove('hidden');
     
-    // Update product title
-    productTitle.textContent = title || data.title || 'Product';
+    // Display product title
+    productTitle.textContent = title;
     
-    // Update confidence score
-    const confScore = data.confidence_score || 0;
-    confidenceScore.textContent = `${confScore}%`;
-    confidenceScore.style.backgroundColor = getConfidenceColor(confScore);
+    // Display confidence score
+    const confidenceVal = data.confidence_score || 0;
+    confidenceScore.textContent = `${Math.round(confidenceVal)}%`;
+    confidenceScore.style.color = getConfidenceColor(confidenceVal);
     confidenceLevel.textContent = data.confidence_level || 'Unknown';
     
-    // Update sentiment score and text
-    const sentScore = data.sentiment_score !== undefined ? data.sentiment_score : 0;
-    sentimentScore.textContent = sentScore.toFixed(2);
-    sentimentScore.style.backgroundColor = getSentimentColor(sentScore);
-    sentimentText.textContent = data.overall_sentiment || 'Neutral';
+    // Display sentiment score
+    const sentimentVal = data.sentiment_score || 0;
+    sentimentScore.textContent = sentimentVal.toFixed(2);
+    sentimentScore.style.color = getSentimentColor(sentimentVal);
+    sentimentText.textContent = data.overall_sentiment || 'Unknown';
     
-    // Update pros list
+    /**
+     * Sanitize and escape text to prevent XSS vulnerabilities
+     * @param {string} text - Input text to sanitize
+     * @returns {string} Sanitized text safe for display
+     */
+    function sanitizeText(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Display pros
     prosList.innerHTML = '';
     if (data.pros && data.pros.length > 0) {
       data.pros.forEach(pro => {
         const li = document.createElement('li');
-        li.textContent = pro;
+        li.innerHTML = sanitizeText(pro);
         prosList.appendChild(li);
       });
     } else {
       const li = document.createElement('li');
       li.textContent = 'No pros identified';
+      li.className = 'no-items';
       prosList.appendChild(li);
     }
     
-    // Update cons list
+    // Display cons
     consList.innerHTML = '';
     if (data.cons && data.cons.length > 0) {
       data.cons.forEach(con => {
         const li = document.createElement('li');
-        li.textContent = con;
+        li.innerHTML = sanitizeText(con);
         consList.appendChild(li);
       });
     } else {
       const li = document.createElement('li');
       li.textContent = 'No cons identified';
+      li.className = 'no-items';
       consList.appendChild(li);
     }
     
-    // Update review count
+    // Display review count
     reviewCount.textContent = data.review_count || 0;
     
-    // Show warnings if any
+    // Display warnings if any
     if (data.warnings && data.warnings.length > 0) {
+      warningsContainer.classList.remove('hidden');
       warningsList.innerHTML = '';
       data.warnings.forEach(warning => {
         const li = document.createElement('li');
         li.textContent = warning;
         warningsList.appendChild(li);
       });
-      warningsContainer.classList.remove('hidden');
     } else {
       warningsContainer.classList.add('hidden');
     }
-    
-    // Show results
-    resultsContainer.classList.remove('hidden');
   }
   
-  // Get color for confidence score
+  /**
+   * Get a color corresponding to a confidence score value
+   * @param {number} score - Confidence score (0-100)
+   * @returns {string} CSS color value
+   */
   function getConfidenceColor(score) {
-    if (score >= 80) return 'var(--success-color)';
-    if (score >= 60) return 'var(--primary-color)';
-    if (score >= 40) return 'var(--warning-color)';
-    return 'var(--error-color)';
+    if (score >= 70) return '#27ae60'; // Green for high confidence
+    if (score >= 40) return '#f39c12'; // Orange for medium confidence
+    return '#e74c3c'; // Red for low confidence
   }
   
-  // Get color for sentiment score
+  /**
+   * Get a color corresponding to a sentiment score value
+   * @param {number} score - Sentiment score (-1 to 1)
+   * @returns {string} CSS color value
+   */
   function getSentimentColor(score) {
-    if (score >= 0.5) return 'var(--success-color)';
-    if (score >= 0) return 'var(--primary-color)';
-    if (score >= -0.5) return 'var(--warning-color)';
-    return 'var(--error-color)';
+    if (score >= 0.3) return '#27ae60';  // Green for positive
+    if (score <= -0.3) return '#e74c3c'; // Red for negative
+    return '#f39c12'; // Orange for neutral
   }
   
-  // Event Listeners
-  analyzeButton.addEventListener('click', startAnalysis);
-  
-  // Check if current page is valid when popup opens
+  // Check if we're on a product page when popup opens
   checkIfProductPage();
+  
+  // Set up event listeners
+  analyzeButton.addEventListener('click', startAnalysis);
 }); 

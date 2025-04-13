@@ -69,13 +69,6 @@ Chrome Plugin → MCP Client → LLM → MCP Server → Results → Chrome Plugi
 ## Supported E-commerce Sites
 
 - Amazon.in / Amazon.com
-- Flipkart
-- Myntra
-- Meesho
-- Ajio
-- Croma
-- Reliance Digital
-- Tata Cliq
 
 ## Setup and Installation
 
@@ -134,6 +127,10 @@ To add a new analysis tool:
 2. Update the `execute_tool_plan` function in `mcp_client.py` to handle the new tool
 3. Update the LLM prompt to include the new tool in `craft_initial_prompt`
 
-## License
-
-MIT License 
+## Limitations
+1. This is not the best version of the tool
+2. Currently only works with Amazon product pages
+3. Limited to processing reviews visible on the current page
+4. Navigation to the review page can retrieve more reviews, but not all at once
+5. Web scraping functionality could be improved and optimized
+6. Review analysis is limited by the quality and quantity of available reviews

@@ -203,13 +203,18 @@ button:disabled {
   margin-bottom: 8px;
 }
 
-ul {
+#pros-list, #cons-list {
   padding-left: 20px;
   margin-bottom: 8px;
+  list-style-type: disc;
+  display: block !important;
 }
 
-li {
-  margin-bottom: 4px;
+#pros-list li, #cons-list li {
+  margin-bottom: 8px;
+  display: list-item !important;
+  word-break: break-word;
+  font-size: 12px;
 }
 
 /* Review info */

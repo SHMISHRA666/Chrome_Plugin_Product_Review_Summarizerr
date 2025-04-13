@@ -1,11 +1,17 @@
-// Content script for Smart Purchase Advisor
-// This script runs on Amazon product pages to scrape product data and reviews
+/**
+ * Content script for Smart Purchase Advisor
+ * This script runs on Amazon product pages to scrape product data and reviews
+ * It communicates with the extension popup via Chrome message passing API
+ */
 
 // Send a message to let the extension know the content script is loaded
 console.log('Smart Purchase Advisor content script loaded');
 chrome.runtime.sendMessage({ action: 'contentScriptLoaded' });
 
-// Listen for messages from the extension popup
+/**
+ * Listener for messages from the extension popup or background script
+ * Handles different message actions: ping, scrapeProductData
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Content script received message:', message);
   
@@ -16,11 +22,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  /**
+   * Main functionality: scrape product data and reviews when requested
+   * Attempts to get basic product info and reviews using multiple strategies:
+   * 1. Try to get reviews from current product page
+   * 2. If that fails, check if we're on a review page and scrape from there
+   * 3. If not on a review page, try to navigate to the reviews page
+   */
   if (message.action === 'scrapeProductData') {
     console.log('Starting product data scraping...');
     
     try {
-      // Get basic product info
+      // Get basic product info (title, price, etc.)
       const productData = getProductInfo();
       console.log('Product info:', productData);
       
@@ -31,6 +44,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (pageReviews.length > 0) {
         // If we have reviews on the current page, use them
         productData.reviews = pageReviews;
+        productData.extracted_reviews = true; // Flag to indicate we have reviews
         sendResponse({ productData: productData });
       } else {
         // If no reviews on current page, check if we're on a reviews page
@@ -41,6 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // We're already on a reviews page, scrape all reviews
           const allReviews = getAllReviewsFromReviewPage();
           productData.reviews = allReviews;
+          productData.extracted_reviews = allReviews.length > 0;
           console.log(`Found ${allReviews.length} reviews on review page`);
           sendResponse({ productData: productData });
         } else {
@@ -53,6 +68,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             fetchReviewsFromUrl(reviewsUrl)
               .then(reviews => {
                 productData.reviews = reviews;
+                productData.extracted_reviews = reviews.length > 0;
                 console.log(`Fetched ${reviews.length} reviews from URL`);
                 sendResponse({ productData: productData });
               })
@@ -60,6 +76,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 console.error('Error fetching reviews:', error);
                 // Return product data without reviews
                 productData.reviews = [];
+                productData.extracted_reviews = false;
                 sendResponse({ 
                   productData: productData,
                   warning: 'Could not fetch reviews. Analysis may be limited.'
@@ -71,6 +88,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } else {
             // Couldn't find reviews URL, return what we have
             productData.reviews = [];
+            productData.extracted_reviews = false;
             sendResponse({ 
               productData: productData,
               warning: 'No reviews found. Analysis may be limited.'
@@ -93,14 +111,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-// Function to extract basic product information
+/**
+ * Extract basic product information from the page
+ * Tries multiple selectors for each piece of information to handle Amazon's variable DOM structure
+ * @returns {Object} Product data object with title, site, price, URL
+ */
 function getProductInfo() {
   const productData = {
     title: '',
     site: 'amazon.com',
     price: '',
     url: window.location.href,
-    reviews: []
+    reviews: [],
+    include_full_details: true  // Flag to tell server to include all details including pros/cons
   };
   
   try {
@@ -177,7 +200,11 @@ function getProductInfo() {
   return productData;
 }
 
-// Function to get reviews from the current product page
+/**
+ * Extract reviews from the current page
+ * Uses multiple selectors to find review text elements
+ * @returns {Array} Array of review text strings
+ */
 function getReviewsFromCurrentPage() {
   const reviews = [];
   
@@ -192,181 +219,186 @@ function getReviewsFromCurrentPage() {
       'div[data-hook="review-collapsed"]',
       '.a-section .review-text',
       '.cr-review-text',
-      'div[data-hook="review"] .a-spacing-small'
     ];
     
-    // Try each selector and collect reviews
+    // Try each selector one by one until we find reviews
     for (const selector of reviewSelectors) {
-      const elements = document.querySelectorAll(selector);
+      const reviewElements = document.querySelectorAll(selector);
       
-      elements.forEach(element => {
-        const text = element.textContent.trim();
-        if (text && text.length > 15 && !reviews.includes(text)) {
-          reviews.push(text);
+      if (reviewElements && reviewElements.length > 0) {
+        reviewElements.forEach(el => {
+          const reviewText = el.textContent.trim();
+          if (reviewText && reviewText.length > 10) {  // Minimum review length
+            reviews.push(reviewText);
+          }
+        });
+        
+        // If we found reviews, no need to try other selectors
+        if (reviews.length > 0) {
+          break;
         }
-      });
-      
-      // If we found reviews with this selector, stop trying others
-      if (reviews.length > 0) {
-        break;
       }
     }
   } catch (error) {
-    console.error('Error in getReviewsFromCurrentPage:', error);
+    console.error('Error getting reviews from current page:', error);
   }
   
   return reviews;
 }
 
-// Function to get all reviews from a review page
+/**
+ * Extract all reviews from a dedicated reviews page
+ * Uses Amazon-specific selectors for the review page layout
+ * @returns {Array} Array of review text strings
+ */
 function getAllReviewsFromReviewPage() {
   const reviews = [];
   
   try {
-    // Try various selectors for review content on review pages
-    const reviewSelectors = [
-      '[data-hook="review-body"] span',
-      '.a-row.a-spacing-small.review-data span.review-text-content span',
-      '.review-text-content span',
-      '.a-expander-content p',
-      '.cr-review-text',
-      'div[data-hook="review"]'
-    ];
+    // Try selectors specific to Amazon review pages
+    const reviewElements = document.querySelectorAll('.review-text-content, [data-hook="review-body"]');
     
-    // Try each selector and collect reviews
-    for (const selector of reviewSelectors) {
-      const elements = document.querySelectorAll(selector);
-      
-      elements.forEach(element => {
-        const text = element.textContent.trim();
-        if (text && text.length > 15 && !reviews.includes(text)) {
-          reviews.push(text);
+    reviewElements.forEach(el => {
+      const reviewText = el.textContent.trim();
+      if (reviewText && reviewText.length > 10) {
+        reviews.push(reviewText);
+      }
+    });
+    
+    // If we don't find reviews with primary selectors, try alternative selectors
+    if (reviews.length === 0) {
+      const altReviewElements = document.querySelectorAll('.a-expander-content');
+      altReviewElements.forEach(el => {
+        const reviewText = el.textContent.trim();
+        if (reviewText && reviewText.length > 10) {
+          reviews.push(reviewText);
         }
       });
-      
-      // If we found reviews with this selector, stop trying others
-      if (reviews.length > 0) {
-        break;
-      }
     }
   } catch (error) {
-    console.error('Error in getAllReviewsFromReviewPage:', error);
+    console.error('Error getting reviews from review page:', error);
   }
   
   return reviews;
 }
 
-// Function to get the URL of the reviews page
+/**
+ * Find the URL to the product's review page
+ * Looks for links containing "See all reviews" or similar text
+ * @returns {string|null} URL to reviews page or null if not found
+ */
 function getReviewsPageUrl() {
   try {
-    // Look for the "See all reviews" link
-    const reviewsLinkSelectors = [
+    // Try to find "See all reviews" link - check multiple potential selectors
+    const reviewLinkSelectors = [
       'a[data-hook="see-all-reviews-link-foot"]',
-      'a[href*="customerReviews"]',
-      'a.a-link-emphasis[href*="reviews"]',
+      'a[data-hook="see-all-reviews-link"]',
+      'a.a-link-emphasis:contains("See all reviews")',
+      'a:contains("See all reviews")',
+      'a:contains("customer reviews")',
       'a[href*="/product-reviews/"]',
-      'a[href*="/reviews/"]',
-      'a[href*="showAllReviews"]',
-      'a#ratings-summary'
+      'a[href*="/reviews/"]'
     ];
     
-    for (const selector of reviewsLinkSelectors) {
-      const element = document.querySelector(selector);
-      if (element && element.href) {
-        return element.href;
+    // Special selector handling for jQuery-like contains selector
+    for (const selector of reviewLinkSelectors) {
+      let elements;
+      
+      if (selector.includes(':contains(')) {
+        // Handle contains text selector manually since we're not using jQuery
+        const baseSelector = selector.split(':contains(')[0];
+        const searchText = selector.match(/:contains\("(.+?)"\)/)[1];
+        elements = Array.from(document.querySelectorAll(baseSelector))
+          .filter(el => el.textContent.includes(searchText));
+      } else {
+        elements = document.querySelectorAll(selector);
+      }
+      
+      if (elements && elements.length > 0) {
+        // Get the first matching element's href
+        const href = elements[0].getAttribute('href');
+        if (href) {
+          // Convert relative URL to absolute if needed
+          if (href.startsWith('/')) {
+            return `${window.location.origin}${href}`;
+          }
+          return href;
+        }
       }
     }
     
-    // If we couldn't find a direct link, try to construct one from the ASIN
+    // Try to construct review URL from ASIN if we couldn't find a link
     const asinMatch = window.location.pathname.match(/\/(dp|product)\/([A-Z0-9]{10})/i);
     if (asinMatch && asinMatch[2]) {
       const asin = asinMatch[2];
-      return `https://www.amazon.com/product-reviews/${asin}`;
+      return `${window.location.origin}/product-reviews/${asin}`;
     }
   } catch (error) {
-    console.error('Error in getReviewsPageUrl:', error);
+    console.error('Error finding reviews URL:', error);
   }
   
   return null;
 }
 
-// Function to fetch and parse reviews from a review page URL
+/**
+ * Fetch reviews from a specific URL
+ * Makes a request to the reviews page and extracts review content
+ * @param {string} url - URL to fetch reviews from
+ * @returns {Promise<Array>} Promise resolving to array of review text strings
+ */
 async function fetchReviewsFromUrl(url) {
   try {
-    console.log(`Fetching reviews from: ${url}`);
-    
-    // Fetch the reviews page
-    const response = await fetch(url, {
-      credentials: 'same-origin',
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch reviews page: ${response.status}`);
-    }
-    
-    const htmlText = await response.text();
-    
-    // Create a DOM parser to extract reviews from the HTML
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlText, 'text/html');
-    
-    const reviews = [];
-    
-    // Try various selectors for review content
-    const reviewSelectors = [
-      '[data-hook="review-body"] span',
-      '.a-row.a-spacing-small.review-data span.review-text-content span',
-      '.review-text-content span',
-      '.a-expander-content p',
-      '.cr-review-text',
-      'div[data-hook="review"] .a-spacing-small'
-    ];
-    
-    // Try each selector and collect reviews
-    for (const selector of reviewSelectors) {
-      const elements = doc.querySelectorAll(selector);
+    // Create a hidden iframe to load the reviews page
+    return new Promise((resolve, reject) => {
+      // Set a timeout to avoid hanging if something goes wrong
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Timeout while fetching reviews'));
+      }, 15000);
       
-      elements.forEach(element => {
-        const text = element.textContent.trim();
-        if (text && text.length > 15 && !reviews.includes(text)) {
-          reviews.push(text);
-        }
-      });
+      // Create an iframe to load the reviews page
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
       
-      // If we found reviews with this selector, stop trying others
-      if (reviews.length > 0) {
-        break;
-      }
-    }
-    
-    // If we have fewer than 5 reviews and there's a next page, fetch more
-    if (reviews.length < 5) {
-      // Look for "Next page" link
-      const nextPageLink = doc.querySelector('li.a-last a');
-      
-      if (nextPageLink && nextPageLink.href) {
+      iframe.onload = () => {
         try {
-          // Make sure we have an absolute URL
-          const nextPageUrl = new URL(nextPageLink.href, url).href;
+          clearTimeout(timeoutId);
           
-          // Don't try to fetch if it's the same URL (to avoid infinite loops)
-          if (nextPageUrl !== url) {
-            const moreReviews = await fetchReviewsFromUrl(nextPageUrl);
-            
-            // Combine reviews but limit to 50 to prevent excessive requests
-            return [...reviews, ...moreReviews].slice(0, 50);
-          }
+          // Access the iframe document and extract reviews
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          const reviews = [];
+          
+          // Try different review selectors within the iframe
+          const reviewElements = iframeDoc.querySelectorAll(
+            '.review-text-content, [data-hook="review-body"], .a-expander-content'
+          );
+          
+          reviewElements.forEach(el => {
+            const reviewText = el.textContent.trim();
+            if (reviewText && reviewText.length > 10) {
+              reviews.push(reviewText);
+            }
+          });
+          
+          // Remove the iframe after extracting reviews
+          document.body.removeChild(iframe);
+          resolve(reviews);
         } catch (error) {
-          console.error('Error fetching additional reviews:', error);
+          clearTimeout(timeoutId);
+          document.body.removeChild(iframe);
+          reject(error);
         }
-      }
-    }
-    
-    return reviews;
+      };
+      
+      iframe.onerror = (error) => {
+        clearTimeout(timeoutId);
+        document.body.removeChild(iframe);
+        reject(error);
+      };
+      
+      // Set the iframe source and add it to the page
+      iframe.src = url;
+      document.body.appendChild(iframe);
+    });
   } catch (error) {
     console.error('Error in fetchReviewsFromUrl:', error);
     return [];

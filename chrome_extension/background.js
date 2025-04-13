@@ -1,6 +1,12 @@
-// Background script (service worker) for Smart Purchase Advisor
+/**
+ * Background script (service worker) for Smart Purchase Advisor
+ * Handles extension initialization, content script injection, and cross-script communication
+ */
 
-// Initialize extension when installed
+/**
+ * Initialize extension settings when installed or updated
+ * Sets default values in chrome.storage.local for extension configuration
+ */
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Smart Purchase Advisor installed');
   
@@ -15,7 +21,10 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Handle URL changes to ensure content script is loaded
+/**
+ * Detect URL changes to inject content script when navigating to Amazon product pages
+ * Ensures the content script is loaded whenever a user visits a relevant product page
+ */
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && isAmazonProductPage(tab.url)) {
     console.log(`Tab updated: ${tab.url} (Amazon product page detected)`);
@@ -59,12 +68,21 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 
-// Function to check if a URL is an Amazon product page
+/**
+ * Determine if a URL is an Amazon product page based on URL pattern
+ * Matches various Amazon domains and product page URL patterns
+ * 
+ * @param {string} url - The URL to check
+ * @returns {boolean} True if the URL is an Amazon product page
+ */
 function isAmazonProductPage(url) {
   return /amazon\.(com|co\.uk|ca|de|fr|es|it|nl|in|co\.jp|com\.au).*\/(dp|gp\/product|product-reviews)\/[A-Z0-9]{10}/i.test(url);
 }
 
-// Listen for messages from popup or content scripts
+/**
+ * Message listener for handling communication between popup and content script
+ * Processes various action requests and returns appropriate responses
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Log all incoming messages
   console.log('Background received message:', message, 'from:', sender.tab ? `Tab ${sender.tab.id}` : 'Extension');
@@ -100,6 +118,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         lastError: result.extensionState ? result.extensionState.lastError : null
       });
     });
+    return true;
+  }
+  
+  /**
+   * Process API results and prepare data for display
+   * Validates and standardizes pros/cons arrays and adds warnings if needed
+   */
+  if (message.action === 'processApiResults') {
+    console.log('Processing API results:', message.data);
+    // Make sure pros and cons are arrays
+    if (message.data) {
+      // Handle case where pros or cons might be hidden 
+      let needsRefresh = false;
+      
+      if (!Array.isArray(message.data.pros)) {
+        message.data.pros = [];
+      } else if (message.data.pros.length === 1 && 
+                typeof message.data.pros[0] === 'string' && 
+                message.data.pros[0].includes('hidden')) {
+        // If we received hidden pros, flag for refresh
+        needsRefresh = true;
+      }
+      
+      if (!Array.isArray(message.data.cons)) {
+        message.data.cons = [];
+      } else if (message.data.cons.length === 1 && 
+                typeof message.data.cons[0] === 'string' && 
+                message.data.cons[0].includes('hidden')) {
+        // If we received hidden cons, flag for refresh
+        needsRefresh = true;
+      }
+      
+      // If we need to refresh data, add a warning
+      if (needsRefresh) {
+        if (!Array.isArray(message.data.warnings)) {
+          message.data.warnings = [];
+        }
+        message.data.warnings.push("Some details are not fully displayed. Click 'Analyze Reviews' again to see all details.");
+      }
+      
+      sendResponse({ 
+        status: 'success',
+        processedData: message.data,
+        needsRefresh: needsRefresh
+      });
+    } else {
+      sendResponse({ 
+        status: 'error',
+        error: 'No data to process'
+      });
+    }
     return true;
   }
   

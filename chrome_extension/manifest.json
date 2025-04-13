@@ -1,36 +1,69 @@
 {
+  // Manifest version 3 is the latest format for Chrome extensions
   "manifest_version": 3,
+  
+  // Extension name displayed in the Chrome Web Store and extension management page
   "name": "Smart Purchase Advisor",
+  
+  // Extension version, incremented for updates
   "version": "1.0",
+  
+  // Brief description of the extension's purpose
   "description": "Helps analyze product reviews to provide purchase advice",
+  
+  // Configuration for the extension's browser action (toolbar icon)
   "action": {
+    // HTML file that appears when the extension icon is clicked
     "default_popup": "popup.html",
+    
+    // Icons displayed in the browser toolbar at different resolutions
     "default_icon": {
       "16": "images/icon16.png",
       "48": "images/icon48.png",
       "128": "images/icon128.png"
     }
   },
+  
+  // Permissions required by the extension
   "permissions": [
+    // Access to information about the active tab
     "activeTab",
+    
+    // Allows executing scripts in pages
     "scripting",
+    
+    // Access to Chrome's storage API for saving settings and data
     "storage"
   ],
+  
+  // Host permissions to allow communication with the local server
   "host_permissions": [
     "http://localhost:8080/*"
   ],
+  
+  // Content scripts are injected into web pages that match the specified patterns
   "content_scripts": [
     {
+      // Only inject content script on Amazon product pages
       "matches": ["*://*.amazon.com/*"],
+      
+      // JavaScript files to inject
       "js": ["content.js"]
     }
   ],
+  
+  // Background service worker that runs independently of any particular web page
   "background": {
     "service_worker": "background.js"
   },
+  
+  // Resources from the extension accessible to web pages
   "web_accessible_resources": [
     {
+      // Files that can be accessed by web pages
       "resources": ["server_check.html"],
+      
+      // Defines which websites can access the resources
       "matches": ["<all_urls>"]
     }
   ]

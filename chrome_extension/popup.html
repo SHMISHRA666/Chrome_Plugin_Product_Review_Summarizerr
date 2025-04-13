@@ -3,31 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src http://localhost:8080">
+  <!-- Content Security Policy to restrict resource loading and prevent XSS attacks -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src http://localhost:8080; style-src 'self' 'unsafe-inline'">
   <title>Smart Purchase Advisor</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
+    <!-- Extension Header -->
     <header>
       <h1>Smart Purchase Advisor</h1>
     </header>
     
+    <!-- Status Container: Displays messages about extension state -->
     <div id="status-container">
       <div id="status-message" class="status-info">
         Navigate to an Amazon product page to analyze reviews
       </div>
     </div>
     
+    <!-- Action Container: Main button and loading spinner -->
     <div class="action-container">
       <button id="analyze-button" disabled>Analyze Reviews</button>
       <div id="loader" class="hidden"></div>
     </div>
     
+    <!-- Results Container: Displays analysis results - hidden by default -->
     <div id="results-container" class="hidden">
+      <!-- Product Title -->
       <h2 id="product-title">Product Name</h2>
       
+      <!-- Score Container: Displays confidence and sentiment scores -->
       <div class="score-container">
+        <!-- Confidence Score Display -->
         <div class="score-box">
           <div class="score-circle" id="confidence-score">0%</div>
           <div class="score-label">
@@ -36,6 +44,7 @@
           </div>
         </div>
         
+        <!-- Sentiment Score Display -->
         <div class="score-box">
           <div class="score-circle" id="sentiment-score">0</div>
           <div class="score-label">
@@ -45,6 +54,7 @@
         </div>
       </div>
       
+      <!-- Pros and Cons Container: Displays positive and negative aspects -->
       <div class="pros-cons-container">
         <div class="pros-box">
           <h3>Pros</h3>
@@ -56,16 +66,19 @@
         </div>
       </div>
       
+      <!-- Review Count Information -->
       <div class="review-info">
         <p>Analysis based on <span id="review-count">0</span> reviews</p>
       </div>
       
+      <!-- Warnings Container: Displays warnings about analysis reliability - hidden by default -->
       <div id="warnings-container" class="hidden">
         <h3>Warnings</h3>
         <ul id="warnings-list"></ul>
       </div>
     </div>
   </div>
+  <!-- Main popup script for handling user interaction and API communication -->
   <script src="popup.js"></script>
 </body>
 </html> 

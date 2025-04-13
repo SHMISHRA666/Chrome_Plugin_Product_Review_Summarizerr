@@ -1,5 +1,12 @@
-// Script to check if the backend server is running
-// Use this to verify the API connection before using the extension
+/**
+ * Server Connection Test Script for Smart Purchase Advisor
+ * 
+ * This script tests if the Python backend API server is running and accessible.
+ * It sends a test request to the server and displays the result to the user,
+ * including troubleshooting tips if the connection fails.
+ * 
+ * The extension requires this server to be running to analyze product reviews.
+ */
 
 document.addEventListener('DOMContentLoaded', function() {
   const SERVER_URL = 'http://localhost:8080/api/detect-product';
@@ -7,11 +14,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const checkButton = document.getElementById('check-server');
   const troubleshootingSection = document.getElementById('troubleshooting');
   
-  // Function to check if the server is running
+  /**
+   * Test the server connection by sending a minimal test request
+   * Displays the result with appropriate styling and shows troubleshooting
+   * guidance if the connection fails
+   */
   function checkServer() {
     statusElement.innerHTML = 'Checking server connection...';
     statusElement.className = 'status-info';
     
+    // Send a minimal test request to the server
     fetch(SERVER_URL, {
       method: 'POST',
       headers: {
@@ -26,6 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(response => {
       if (response.ok) {
         return response.json().then(data => {
+          // Server responded successfully with JSON
           statusElement.innerHTML = `✅ Server is running and responding correctly`;
           statusElement.className = 'status-success';
           troubleshootingSection.style.display = 'none';
@@ -39,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error('JSON parsing error:', err);
         });
       } else {
+        // Server responded with an error status
         statusElement.innerHTML = `❌ Server responded with status: ${response.status} ${response.statusText}`;
         statusElement.className = 'status-error';
         troubleshootingSection.style.display = 'block';
@@ -46,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     })
     .catch(error => {
+      // Network error - server might not be running
       statusElement.innerHTML = `❌ Could not connect to server: ${error.message}`;
       statusElement.className = 'status-error';
       troubleshootingSection.style.display = 'block';
