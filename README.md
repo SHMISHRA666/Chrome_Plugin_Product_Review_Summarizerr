@@ -50,10 +50,17 @@ Chrome Plugin → MCP Client → LLM → MCP Server → Results → Chrome Plugi
 │   ├── manifest.json        # Extension manifest
 │   └── popup.html           # Popup HTML
 │
-├── mcp_client.py            # MCP client that communicates with LLM
+├── mcp_client.py            # Main MCP client that communicates with LLM
+├── mcp_client_withalltools.py  # Alternative client with all tools included
+├── mcp_client_mock_extra.py    # Mock client for testing purposes
 ├── mcp_server.py            # MCP server with tools for review analysis
-├── cot_main.py              # Reference implementation for LLM calling
-└── cot_tools.py             # Reference implementation for MCP tools
+├── mcp_server_mock.py       # Mock server for testing purposes
+├── cot_tools_example.py     # Example implementation for MCP tools
+├── cot_main_example.py      # Example implementation for LLM calling
+├── main.py                  # Entry point script
+├── pyproject.toml           # Project configuration
+├── requirements.txt         # Project dependencies
+└── .env                     # Environment variables (API keys)
 ```
 
 ## Features
