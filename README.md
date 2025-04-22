@@ -14,6 +14,8 @@ Review Summarizer analyzes product reviews on popular e-commerce sites to provid
 
 The extension summarizes in the plugin box to supported e-commerce sites that shows detailed review analysis to help users make informed purchase decisions.
 
+**Watch the demo video:** [Review Summarizer in action](https://youtu.be/Z-BzPWn6Gm8)
+
 ## Architecture
 
 The Review Summarizer consists of three main components:
